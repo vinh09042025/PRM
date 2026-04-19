@@ -1,6 +1,6 @@
 # WordSprint - Ứng dụng học từ vựng cá nhân hóa
 
-WordSprint là một ứng dụng di động (và máy tính) giúp bạn học tập và ghi nhớ từ vựng một cách hiệu quả thông qua phương pháp Flashcard và Trắc nghiệm. Ứng dụng hoạt động hoàn toàn Offline, đảm bảo sự tập trung cao nhất.
+WordSprint là một ứng dụng di động giúp bạn học tập và ghi nhớ từ vựng một cách hiệu quả thông qua phương pháp Flashcard và Trắc nghiệm. Ứng dụng hoạt động hoàn toàn Offline, đảm bảo sự tập trung cao nhất.
 
 ## 🚀 Tính năng chính
 
@@ -15,7 +15,7 @@ WordSprint là một ứng dụng di động (và máy tính) giúp bạn học 
 
 - **Flutter SDK:** >= 3.0.0
 - **Dart SDK:** >= 3.0.0
-- **Nền tảng:** Android (minSdkVersion 21), Windows Desktop.
+- **Nền tảng:** Android (minSdkVersion 21).
 
 ## 📥 Hướng dẫn cài đặt cho nhóm
 
@@ -32,10 +32,7 @@ WordSprint là một ứng dụng di động (và máy tính) giúp bạn học 
     flutter pub get
     ```
 
-3.  **Lưu ý cho người dùng Windows:**
-    Nếu bạn chạy trên Windows Desktop, hãy đảm bảo đã bật **Developer Mode** trong cài đặt hệ thống (Settings -> Update & Security -> For developers).
-
-4.  **Chạy ứng dụng:**
+3.  **Chạy ứng dụng:**
     ```bash
     flutter run
     ```
