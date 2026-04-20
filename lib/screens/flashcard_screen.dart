@@ -5,6 +5,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../models/word.dart';
 import '../providers/deck_provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class FlashcardScreen extends StatefulWidget {
   final int deckId;
@@ -15,8 +16,7 @@ class FlashcardScreen extends StatefulWidget {
   State<FlashcardScreen> createState() => _FlashcardScreenState();
 }
 
-class _FlashcardScreenState extends State<FlashcardScreen>
-    with TickerProviderStateMixin {
+class _FlashcardScreenState extends State<FlashcardScreen> with TickerProviderStateMixin {
   int _currentIndex = 0;
   int _correctCount = 0;
   bool _isFinished = false;
@@ -54,7 +54,7 @@ class _FlashcardScreenState extends State<FlashcardScreen>
     } else {
       setState(() => _isSpeaking = true);
       await _flutterTts.speak(text);
-      setState(() => _isSpeaking = false);
+      if (mounted) setState(() => _isSpeaking = false);
     }
   }
 
@@ -68,57 +68,33 @@ class _FlashcardScreenState extends State<FlashcardScreen>
 
   void _onAnswer(bool isCorrect) async {
     if (isCorrect) {
-      // Show remembered animation
       setState(() => _isShowingRememberedAnimation = true);
       _rememberedAnimationController.forward();
-
-      // Wait for animation to complete before moving to next card
-      await Future.delayed(const Duration(milliseconds: 600));
-
+      await Future.delayed(const Duration(milliseconds: 500));
       _correctCount++;
-
-      if (_currentIndex < widget.words.length - 1) {
-        setState(() {
-          _currentIndex++;
-          _isShowingRememberedAnimation = false;
-          _rememberedAnimationController.reset();
-        });
-      } else {
-        setState(() {
-          _isFinished = true;
-        });
-        // Ghi lại phiên học vào DB
-        context.read<DeckProvider>().recordStudySession(
-          widget.deckId,
-          _correctCount,
-          widget.words.length,
-        );
-      }
     } else {
-      // Show forget animation
       setState(() => _isShowingForgetAnimation = true);
       _forgetAnimationController.forward();
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
 
-      // Wait for animation to complete before moving to next card
-      await Future.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
 
-      if (_currentIndex < widget.words.length - 1) {
-        setState(() {
-          _currentIndex++;
-          _isShowingForgetAnimation = false;
-          _forgetAnimationController.reset();
-        });
-      } else {
-        setState(() {
-          _isFinished = true;
-        });
-        // Ghi lại phiên học vào DB
-        context.read<DeckProvider>().recordStudySession(
-          widget.deckId,
-          _correctCount,
-          widget.words.length,
-        );
-      }
+    if (_currentIndex < widget.words.length - 1) {
+      setState(() {
+        _currentIndex++;
+        _isShowingRememberedAnimation = false;
+        _isShowingForgetAnimation = false;
+        _rememberedAnimationController.reset();
+        _forgetAnimationController.reset();
+      });
+    } else {
+      setState(() => _isFinished = true);
+      context.read<DeckProvider>().recordStudySession(
+        widget.deckId,
+        _correctCount,
+        widget.words.length,
+      );
     }
   }
 
@@ -134,29 +110,19 @@ class _FlashcardScreenState extends State<FlashcardScreen>
     }
 
     final word = widget.words[_currentIndex];
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'Thẻ ghi nhớ (${_currentIndex + 1}/${widget.words.length})',
+        title: Text('${_currentIndex + 1} / ${widget.words.length}'),
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded),
+          onPressed: () => Navigator.pop(context),
         ),
-        centerTitle: true,
         actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: Center(
-              child: Material(
-                color: Colors.transparent,
-                child: IconButton(
-                  onPressed: () => _speak(word.front),
-                  icon: Icon(
-                    _isSpeaking ? Icons.volume_up : Icons.volume_up_outlined,
-                    color: _isSpeaking ? Colors.amber : null,
-                  ),
-                  tooltip: 'Phát âm từ',
-                ),
-              ),
-            ),
+          IconButton(
+            icon: const Icon(Icons.tune_rounded),
+            onPressed: () {},
           ),
         ],
       ),
@@ -164,34 +130,32 @@ class _FlashcardScreenState extends State<FlashcardScreen>
         children: [
           Column(
             children: [
-              const SizedBox(height: 20),
-              // Tiến trình
+              const SizedBox(height: 12),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: LinearProgressIndicator(
-                  value: (_currentIndex + 1) / widget.words.length,
+                child: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
+                  child: LinearProgressIndicator(
+                    value: (_currentIndex + 1) / widget.words.length,
+                    minHeight: 8,
+                    backgroundColor: Colors.grey.shade200,
+                    valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+                  ),
                 ),
               ),
-
               const Spacer(),
-
-              // Thẻ Flashcard với hiệu ứng lật
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: AnimatedOpacity(
-                  opacity:
-                      (_isShowingRememberedAnimation ||
-                          _isShowingForgetAnimation)
-                      ? 1 -
-                            (_isShowingRememberedAnimation
-                                ? _rememberedAnimationController.value
-                                : _forgetAnimationController.value)
-                      : 1.0,
-                  duration: const Duration(milliseconds: 300),
+                child: Hero(
+                  tag: 'card_hero',
                   child: FlipCardWidget(
                     key: ValueKey(_currentIndex),
-                    front: _CardFace(text: word.front, isFront: true),
+                    front: _CardFace(
+                      text: word.front, 
+                      isFront: true,
+                      onSpeak: () => _speak(word.front),
+                      isSpeaking: _isSpeaking,
+                    ),
                     back: _CardFace(
                       text: word.back,
                       subText: word.example,
@@ -200,110 +164,174 @@ class _FlashcardScreenState extends State<FlashcardScreen>
                   ),
                 ),
               ),
-
               const Spacer(),
-
-              // Nút điều khiển
               Padding(
-                padding: const EdgeInsets.all(24.0),
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 48),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed:
-                            (_isShowingRememberedAnimation ||
-                                _isShowingForgetAnimation)
-                            ? null
-                            : () => _onAnswer(false),
-                        icon: const Icon(Icons.close),
-                        label: const Text('Chưa thuộc'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade50,
-                          foregroundColor: Colors.red,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          elevation: 0,
-                        ),
-                      ),
+                    _AnswerButton(
+                      label: 'Chưa thuộc',
+                      icon: Icons.sentiment_dissatisfied_rounded,
+                      color: Colors.redAccent,
+                      onTap: () => _onAnswer(false),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed:
-                            (_isShowingRememberedAnimation ||
-                                _isShowingForgetAnimation)
-                            ? null
-                            : () => _onAnswer(true),
-                        icon: const Icon(Icons.check),
-                        label: const Text('Đã thuộc'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade50,
-                          foregroundColor: Colors.green,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          elevation: 0,
-                        ),
-                      ),
+                    const SizedBox(width: 20),
+                    _AnswerButton(
+                      label: 'Đã thuộc',
+                      icon: Icons.sentiment_very_satisfied_rounded,
+                      color: Colors.greenAccent.shade700,
+                      onTap: () => _onAnswer(true),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          // Remembered animation overlay
-          if (_isShowingRememberedAnimation)
-            AnimatedBuilder(
-              animation: _rememberedAnimationController,
-              builder: (context, child) {
-                return Center(
-                  child: Transform.scale(
-                    scale: _rememberedAnimationController.value * 1.5,
-                    child: Opacity(
-                      opacity: 1 - _rememberedAnimationController.value,
-                      child: Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          color: Colors.green,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.check,
-                          color: Colors.white,
-                          size: 60,
-                        ),
-                      ),
+          
+          if (_isShowingRememberedAnimation) _buildOverlay(Icons.check_circle, Colors.green),
+          if (_isShowingForgetAnimation) _buildOverlay(Icons.cancel, Colors.red),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverlay(IconData icon, Color color) {
+    return Container(
+      color: color.withValues(alpha: 0.1),
+      child: Center(
+        child: Icon(icon, color: color, size: 120),
+      ),
+    );
+  }
+}
+
+class _AnswerButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _AnswerButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: ElevatedButton(
+        onPressed: onTap,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
+          foregroundColor: color,
+          side: BorderSide(color: color.withValues(alpha: 0.3)),
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 28),
+            const SizedBox(height: 8),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CardFace extends StatelessWidget {
+  final String text;
+  final String? subText;
+  final bool isFront;
+  final VoidCallback? onSpeak;
+  final bool isSpeaking;
+
+  const _CardFace({
+    required this.text, 
+    this.subText, 
+    required this.isFront,
+    this.onSpeak,
+    this.isSpeaking = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      height: 420,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          if (isFront && onSpeak != null)
+            Positioned(
+              top: 16,
+              right: 16,
+              child: IconButton(
+                icon: Icon(
+                  isSpeaking ? Icons.volume_up : Icons.volume_up_outlined,
+                  color: isSpeaking ? colorScheme.primary : Colors.grey,
+                ),
+                onPressed: onSpeak,
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  isFront ? 'THUẬT NGỮ' : 'ĐỊNH NGHĨA',
+                  style: TextStyle(
+                    letterSpacing: 2,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade400,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  text,
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.lexend(
+                    fontSize: 34,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                if (subText != null) ...[
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Divider(indent: 40, endIndent: 40),
+                  ),
+                  Text(
+                    subText!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey.shade600,
+                      height: 1.5,
                     ),
                   ),
-                );
-              },
+                ],
+              ],
             ),
-          // Forget animation overlay
-          if (_isShowingForgetAnimation)
-            AnimatedBuilder(
-              animation: _forgetAnimationController,
-              builder: (context, child) {
-                return Center(
-                  child: Transform.scale(
-                    scale: _forgetAnimationController.value * 1.5,
-                    child: Opacity(
-                      opacity: 1 - _forgetAnimationController.value,
-                      child: Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.close,
-                          color: Colors.white,
-                          size: 60,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
+          ),
         ],
       ),
     );
@@ -320,8 +348,7 @@ class FlipCardWidget extends StatefulWidget {
   State<FlipCardWidget> createState() => _FlipCardWidgetState();
 }
 
-class _FlipCardWidgetState extends State<FlipCardWidget>
-    with SingleTickerProviderStateMixin {
+class _FlipCardWidgetState extends State<FlipCardWidget> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   bool _isFront = true;
 
@@ -330,7 +357,7 @@ class _FlipCardWidgetState extends State<FlipCardWidget>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 400),
     );
   }
 
@@ -346,9 +373,7 @@ class _FlipCardWidgetState extends State<FlipCardWidget>
     } else {
       _controller.reverse();
     }
-    setState(() {
-      _isFront = !_isFront;
-    });
+    setState(() => _isFront = !_isFront);
   }
 
   @override
@@ -361,7 +386,7 @@ class _FlipCardWidgetState extends State<FlipCardWidget>
           onTap: _flipCard,
           child: Transform(
             transform: Matrix4.identity()
-              ..setEntry(3, 2, 0.001) // perspective
+              ..setEntry(3, 2, 0.001)
               ..rotateY(angle),
             alignment: Alignment.center,
             child: angle < pi / 2
@@ -374,83 +399,6 @@ class _FlipCardWidgetState extends State<FlipCardWidget>
           ),
         );
       },
-    );
-  }
-}
-
-class _CardFace extends StatelessWidget {
-  final String text;
-  final String? subText;
-  final bool isFront;
-
-  const _CardFace({required this.text, this.subText, required this.isFront});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      height: 400,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: isFront
-            ? Colors.white
-            : colorScheme.primaryContainer.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      alignment: Alignment.center,
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              isFront ? 'Từ vựng' : 'Nghĩa',
-              style: TextStyle(
-                color: colorScheme.primary,
-                letterSpacing: 2,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
-              ),
-            ),
-            if (subText != null) ...[
-              const SizedBox(height: 24),
-              const Divider(),
-              const SizedBox(height: 24),
-              Text(
-                'Ví dụ:',
-                style: TextStyle(
-                  fontStyle: FontStyle.italic,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                subText!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 16),
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }
@@ -478,150 +426,132 @@ class _ResultViewState extends State<_ResultView> {
   @override
   void initState() {
     super.initState();
-    _sessionsFuture = context.read<DeckProvider>().getAllStudySessions(
-      widget.deckId,
-    );
+    _sessionsFuture = context.read<DeckProvider>().getAllStudySessions(widget.deckId);
   }
 
   @override
   Widget build(BuildContext context) {
     final score = (widget.correct / widget.total * 100).round();
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
+      appBar: AppBar(title: const Text('Kết quả học tập')),
       body: SingleChildScrollView(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.stars, color: Colors.amber, size: 100),
-                const SizedBox(height: 24),
-                const Text(
-                  'Hoàn thành phiên học!',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(32),
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainer,
+                  borderRadius: BorderRadius.circular(32),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.primary.withValues(alpha: 0.1),
+                      blurRadius: 30,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  'Bạn đã thuộc ${widget.correct}/${widget.total} từ ($score%)',
-                  style: const TextStyle(fontSize: 18),
-                ),
-                const SizedBox(height: 48),
-                // Trend chart by attempts
-                const Text(
-                  'Tiến trình theo lần ôn tập',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                FutureBuilder<List<Map<String, dynamic>>>(
-                  future: _sessionsFuture,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const CircularProgressIndicator();
-                    }
-
-                    if (snapshot.hasError) {
-                      return Text('Lỗi: ${snapshot.error}');
-                    }
-
-                    final sessions = snapshot.data ?? [];
-
-                    if (sessions.isEmpty) {
-                      return const Text('Chưa có dữ liệu');
-                    }
-
-                    // Prepare chart data: score percentage for each attempt
-                    final chartSpots = <FlSpot>[];
-                    for (int i = 0; i < sessions.length; i++) {
-                      final correct = sessions[i]['correct_count'] as int;
-                      final total = sessions[i]['total_count'] as int;
-                      final percentage = total > 0
-                          ? (correct / total * 100)
-                          : 0.0;
-                      chartSpots.add(FlSpot(i.toDouble(), percentage));
-                    }
-
-                    final maxY = 100.0;
-                    final maxX = (chartSpots.length - 1).toDouble();
-
-                    return SizedBox(
-                      height: 250,
-                      child: LineChart(
-                        LineChartData(
-                          minX: 0,
-                          maxX: maxX > 0 ? maxX : 1,
-                          minY: 0,
-                          maxY: maxY,
-                          gridData: FlGridData(
-                            show: true,
-                            horizontalInterval: 20,
+                child: Column(
+                  children: [
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 140,
+                          height: 140,
+                          child: CircularProgressIndicator(
+                            value: widget.correct / widget.total,
+                            strokeWidth: 12,
+                            strokeCap: StrokeCap.round,
+                            backgroundColor: Colors.grey.shade100,
                           ),
-                          titlesData: FlTitlesData(
-                            bottomTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                interval: chartSpots.length > 10
-                                    ? (chartSpots.length / 5).roundToDouble()
-                                    : 1,
-                                getTitlesWidget: (value, meta) {
-                                  return Text(
-                                    (value.toInt() + 1).toString(),
-                                    style: const TextStyle(fontSize: 10),
-                                  );
-                                },
-                              ),
+                        ),
+                        Column(
+                          children: [
+                            Text(
+                              '$score%',
+                              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
                             ),
-                            leftTitles: AxisTitles(
-                              sideTitles: SideTitles(
-                                showTitles: true,
-                                getTitlesWidget: (value, meta) {
-                                  return Text(
-                                    '${value.toInt()}%',
-                                    style: const TextStyle(fontSize: 10),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                          lineBarsData: [
-                            LineChartBarData(
-                              spots: chartSpots,
-                              isCurved: true,
-                              color: Colors.blue,
-                              barWidth: 2,
-                              dotData: FlDotData(
-                                show: true,
-                                getDotPainter:
-                                    (spot, percent, barData, index) =>
-                                        FlDotCirclePainter(
-                                          radius: 4,
-                                          color: Colors.blue,
-                                          strokeWidth: 0,
-                                        ),
-                              ),
-                            ),
+                            const Text('Chính xác', style: TextStyle(color: Colors.grey)),
                           ],
                         ),
-                      ),
-                    );
-                  },
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+                    Text(
+                      'Tuyệt vời! Bạn đã thuộc ${widget.correct} từ.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 48),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: widget.onRetry,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+              ),
+              const SizedBox(height: 32),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Tiến trình ôn tập', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 16),
+              FutureBuilder<List<Map<String, dynamic>>>(
+                future: _sessionsFuture,
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                  final sessions = snapshot.data!;
+                  if (sessions.isEmpty) return const Text('Chưa có dữ liệu lịch sử');
+
+                  final spots = sessions.asMap().entries.map((e) {
+                    final p = (e.value['correct_count'] / e.value['total_count'] * 100);
+                    return FlSpot(e.key.toDouble(), p);
+                  }).toList();
+
+                  return Container(
+                    height: 200,
+                    padding: const EdgeInsets.only(top: 20, right: 20),
+                    child: LineChart(
+                      LineChartData(
+                        gridData: const FlGridData(show: false),
+                        titlesData: const FlTitlesData(
+                          show: true,
+                          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        ),
+                        borderData: FlBorderData(show: false),
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: spots,
+                            isCurved: true,
+                            color: colorScheme.primary,
+                            barWidth: 4,
+                            isStrokeCapRound: true,
+                            dotData: const FlDotData(show: true),
+                            belowBarData: BarAreaData(
+                              show: true,
+                              color: colorScheme.primary.withValues(alpha: 0.1),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: const Text('Quay lại danh sách'),
+                  );
+                },
+              ),
+              const SizedBox(height: 48),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: widget.onRetry,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   ),
+                  child: const Text('Tiếp tục học tập', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

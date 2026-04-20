@@ -206,4 +206,34 @@ class DeckProvider with ChangeNotifier {
     _currentStreak = streak;
     notifyListeners();
   }
+
+  // --- AI Generation Support ---
+
+  Future<void> addAIGeneratedDeck(String deckName, List<Map<String, dynamic>> aiWords) async {
+    try {
+      final db = await DatabaseHelper.instance.database;
+      
+      // 1. Create the deck
+      final newDeck = Deck(name: deckName, createdAt: DateTime.now());
+      final deckId = await db.insert('decks', newDeck.toMap());
+      
+      // 2. Insert all words
+      for (var aiWord in aiWords) {
+        final newWord = Word(
+          deckId: deckId,
+          front: aiWord['front'] ?? 'Unknown',
+          back: aiWord['back'] ?? 'Nghĩa chưa xác định',
+          example: aiWord['example'],
+        );
+        await db.insert('words', newWord.toMap());
+      }
+      
+      // 3. Refresh local data
+      await fetchDecks();
+      debugPrint('Đã tạo bộ thẻ từ AI: $deckName với ${aiWords.length} từ.');
+    } catch (e) {
+      debugPrint('Lỗi khi lưu bộ thẻ AI: $e');
+      rethrow;
+    }
+  }
 }
