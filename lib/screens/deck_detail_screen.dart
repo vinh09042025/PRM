@@ -17,9 +17,13 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => 
-      context.read<DeckProvider>().fetchWords(widget.deck.id!)
-    );
+    Future.microtask(() {
+      if (widget.deck.id != null) {
+        return context.read<DeckProvider>().fetchWords(widget.deck.id!);
+      } else {
+        debugPrint('Lỗi: Deck ID là null');
+      }
+    });
   }
 
   void _showAddWordDialog() {
@@ -41,11 +45,13 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
               ),
               TextField(
                 controller: backController,
-                decoration: const InputDecoration(labelText: 'Nghĩa tiếng Việt'),
+                decoration:
+                    const InputDecoration(labelText: 'Nghĩa tiếng Việt'),
               ),
               TextField(
                 controller: exampleController,
-                decoration: const InputDecoration(labelText: 'Ví dụ (không bắt buộc)'),
+                decoration:
+                    const InputDecoration(labelText: 'Ví dụ (không bắt buộc)'),
               ),
             ],
           ),
@@ -57,13 +63,16 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              if (frontController.text.isNotEmpty && backController.text.isNotEmpty) {
+              if (frontController.text.isNotEmpty &&
+                  backController.text.isNotEmpty) {
                 context.read<DeckProvider>().addWord(
-                  widget.deck.id!,
-                  frontController.text,
-                  backController.text,
-                  exampleController.text.isEmpty ? null : exampleController.text,
-                );
+                      widget.deck.id!,
+                      frontController.text,
+                      backController.text,
+                      exampleController.text.isEmpty
+                          ? null
+                          : exampleController.text,
+                    );
                 Navigator.pop(context);
               }
             },
@@ -104,14 +113,16 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
                       final words = context.read<DeckProvider>().currentWords;
                       if (words.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Bộ thẻ chưa có từ nào!')),
+                          const SnackBar(
+                              content: Text('Bộ thẻ chưa có từ nào!')),
                         );
                         return;
                       }
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => FlashcardScreen(deckId: widget.deck.id!, words: words),
+                          builder: (context) => FlashcardScreen(
+                              deckId: widget.deck.id!, words: words),
                         ),
                       );
                     },
@@ -127,14 +138,16 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
                       final words = context.read<DeckProvider>().currentWords;
                       if (words.length < 4) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Cần ít nhất 4 từ để làm Quiz!')),
+                          const SnackBar(
+                              content: Text('Cần ít nhất 4 từ để làm Quiz!')),
                         );
                         return;
                       }
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => QuizScreen(deckId: widget.deck.id!, words: words),
+                          builder: (context) =>
+                              QuizScreen(deckId: widget.deck.id!, words: words),
                         ),
                       );
                     },
@@ -151,7 +164,8 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
               children: [
                 Icon(Icons.list, size: 20),
                 SizedBox(width: 8),
-                Text('Danh sách từ vựng', style: TextStyle(fontWeight: FontWeight.bold)),
+                Text('Danh sách từ vựng',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -161,12 +175,14 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
             child: Consumer<DeckProvider>(
               builder: (context, provider, child) {
                 if (provider.currentWords.isEmpty) {
-                  return const Center(child: Text('Chưa có từ nào trong bộ thẻ này.'));
+                  return const Center(
+                      child: Text('Chưa có từ nào trong bộ thẻ này.'));
                 }
                 return ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: provider.currentWords.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 8),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final word = provider.currentWords[index];
                     return Card(
@@ -174,15 +190,22 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
                       color: colorScheme.surfaceVariant.withOpacity(0.2),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.5)),
+                        side: BorderSide(
+                            color: colorScheme.outlineVariant.withOpacity(0.5)),
                       ),
                       child: ListTile(
-                        title: Text(word.front, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        title: Text(word.front,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold)),
                         subtitle: Text(word.back),
                         trailing: IconButton(
                           icon: Icon(
-                            word.isLearned ? Icons.check_circle : Icons.radio_button_unchecked,
-                            color: word.isLearned ? Colors.green : colorScheme.outline,
+                            word.isLearned
+                                ? Icons.check_circle
+                                : Icons.radio_button_unchecked,
+                            color: word.isLearned
+                                ? Colors.green
+                                : colorScheme.outline,
                           ),
                           onPressed: () => provider.toggleWordLearned(word),
                         ),
