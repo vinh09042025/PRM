@@ -32,18 +32,15 @@ class DeckProvider with ChangeNotifier {
   // Thêm bộ thẻ mới
   Future<void> addDeck(String name) async {
     try {
-      final newDeck = Deck(
-        name: name,
-        createdAt: DateTime.now(),
-      );
-      
+      final newDeck = Deck(name: name, createdAt: DateTime.now());
+
       // Tối ưu: Thêm vào list cục bộ ngay lập tức để UI cập nhật
       _decks.insert(0, newDeck);
       notifyListeners();
 
       final db = await DatabaseHelper.instance.database;
       final id = await db.insert('decks', newDeck.toMap());
-      
+
       // Cập nhật lại ID thực sau khi insert thành công
       final index = _decks.indexOf(newDeck);
       if (index != -1) {
@@ -57,7 +54,12 @@ class DeckProvider with ChangeNotifier {
   }
 
   // Thêm từ vựng mới vào bộ thẻ
-  Future<void> addWord(int deckId, String front, String back, String? example) async {
+  Future<void> addWord(
+    int deckId,
+    String front,
+    String back,
+    String? example,
+  ) async {
     try {
       final newWord = Word(
         deckId: deckId,
@@ -72,7 +74,7 @@ class DeckProvider with ChangeNotifier {
 
       final db = await DatabaseHelper.instance.database;
       final id = await db.insert('words', newWord.toMap());
-      
+
       // Cập nhật ID thực
       final index = _currentWords.indexOf(newWord);
       if (index != -1) {
@@ -87,7 +89,7 @@ class DeckProvider with ChangeNotifier {
   // Cập nhật trạng thái "Đã thuộc" của từ vựng
   Future<void> toggleWordLearned(Word word) async {
     final updatedWord = word.copyWith(isLearned: !word.isLearned);
-    
+
     // Cập nhật UI trước (Optimistic)
     final index = _currentWords.indexWhere((w) => w.id == word.id);
     if (index != -1) {
@@ -134,7 +136,9 @@ class DeckProvider with ChangeNotifier {
       // Thay vì gọi fetchDecks() tốn kém, ta chỉ cập nhật deck bị thay đổi
       final deckIndex = _decks.indexWhere((d) => d.id == deckId);
       if (deckIndex != -1) {
-        _decks[deckIndex] = _decks[deckIndex].copyWith(lastStudied: DateTime.parse(now));
+        _decks[deckIndex] = _decks[deckIndex].copyWith(
+          lastStudied: DateTime.parse(now),
+        );
         // Đưa deck vừa học lên đầu danh sách (tùy chọn UI)
         final movedDeck = _decks.removeAt(deckIndex);
         _decks.insert(0, movedDeck);
@@ -145,6 +149,25 @@ class DeckProvider with ChangeNotifier {
     } catch (e) {
       debugPrint('Lỗi record session: $e');
       await fetchDecks();
+    }
+  }
+
+  // Lấy tất cả phiên học của một bộ thẻ
+  Future<List<Map<String, dynamic>>> getAllStudySessions(int deckId) async {
+    try {
+      final db = await DatabaseHelper.instance.database;
+
+      final sessions = await db.query(
+        'study_sessions',
+        where: 'deck_id = ?',
+        whereArgs: [deckId],
+        orderBy: 'date ASC',
+      );
+
+      return sessions;
+    } catch (e) {
+      debugPrint('Lỗi lấy study sessions: $e');
+      return [];
     }
   }
 
