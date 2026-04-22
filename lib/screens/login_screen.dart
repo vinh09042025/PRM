@@ -72,18 +72,21 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo / Icon
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
-                    ),
-                    child: const Icon(
-                      Icons.flash_on_rounded,
-                      size: 64,
-                      color: Colors.white,
+                  // Logo Image
+                  Hero(
+                    tag: 'logo',
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(32),
+                      ),
+                      child: Image.asset(
+                        'assets/images/logo.png',
+                        height: 100,
+                        width: 100,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -138,7 +141,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             labelText: 'Email',
                             prefixIcon: const Icon(Icons.email_outlined),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(24),
                             ),
                           ),
                         ),
@@ -158,7 +161,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                             ),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(24),
                             ),
                           ),
                         ),
@@ -174,7 +177,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 style: ElevatedButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(vertical: 16),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
+                                    borderRadius: BorderRadius.circular(24),
                                   ),
                                 ),
                                 child: auth.isLoading

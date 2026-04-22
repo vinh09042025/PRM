@@ -76,13 +76,14 @@ class FirestoreService {
   }
 
   Future<String> addWord(String deckId, Word word) async {
+    final wordWithUid = word.copyWith(uid: uid);
     final docRef = await _db
         .collection('users')
         .doc(uid)
         .collection('decks')
         .doc(deckId)
         .collection('words')
-        .add(word.toFirestore());
+        .add(wordWithUid.toFirestore());
     return docRef.id;
   }
 
@@ -136,5 +137,38 @@ class FirestoreService {
     batch.update(deckRef, {'last_studied': Timestamp.fromDate(now)});
 
     await batch.commit();
+  }
+
+  Future<List<Word>> getLearnedWords() async {
+    final snapshot = await _db
+        .collectionGroup('words')
+        .where('uid', isEqualTo: uid)
+        .where('is_learned', isEqualTo: true)
+        .get();
+    
+    return snapshot.docs
+        .map((doc) => Word.fromMap(doc.data(), id: doc.id))
+        .toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getStudySessions() async {
+    final snapshot = await _db
+        .collection('users')
+        .doc(uid)
+        .collection('study_sessions')
+        .orderBy('date', descending: true)
+        .get();
+    
+    return snapshot.docs.map((doc) => doc.data()).toList();
+  }
+
+  Stream<List<Map<String, dynamic>>> streamStudySessions() {
+    return _db
+        .collection('users')
+        .doc(uid)
+        .collection('study_sessions')
+        .orderBy('date', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => doc.data()).toList());
   }
 }

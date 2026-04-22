@@ -61,6 +61,11 @@ class _QuizScreenState extends State<QuizScreen> {
       _isAnswered = true;
       if (_options[index] == widget.words[_currentIndex].back) {
         _correctCount++;
+        // Cập nhật trạng thái "Đã học" lên Cloud
+        final word = widget.words[_currentIndex];
+        if (!word.isLearned) {
+          context.read<DeckProvider>().toggleWordLearned(word);
+        }
       }
     });
 

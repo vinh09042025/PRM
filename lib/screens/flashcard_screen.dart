@@ -70,6 +70,13 @@ class _FlashcardScreenState extends State<FlashcardScreen> with TickerProviderSt
     if (isCorrect) {
       setState(() => _isShowingRememberedAnimation = true);
       _rememberedAnimationController.forward();
+      
+      // Cập nhật trạng thái "Đã học" lên Cloud
+      final word = widget.words[_currentIndex];
+      if (!word.isLearned) {
+        context.read<DeckProvider>().toggleWordLearned(word);
+      }
+      
       await Future.delayed(const Duration(milliseconds: 500));
       _correctCount++;
     } else {

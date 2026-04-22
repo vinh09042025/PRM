@@ -14,6 +14,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   String _selectedPeriod = 'day';
   Map<String, int> _stats = {};
   bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -22,14 +23,24 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   Future<void> _loadStats() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
-    // Đối với Firebase, chúng ta cần một cách tiếp cận khác cho thống kê
-    // Tạm thời trả về một map trống hoặc lấy từ một Service khác
-    final stats = <String, int>{};
-    setState(() {
-      _stats = stats;
-      _isLoading = false;
-    });
+    
+    try {
+      final stats = await context.read<DeckProvider>().getStatistics(_selectedPeriod);
+      setState(() {
+        _stats = stats;
+        _isLoading = false;
+        _errorMessage = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.toString();
+      });
+      debugPrint('Error loading stats: $e');
+    }
   }
 
   @override
@@ -89,9 +100,30 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                       height: 250,
                       child: _isLoading
                           ? const Center(child: CircularProgressIndicator())
-                          : _stats.isEmpty
-                              ? const Center(child: Text('Chưa có dữ liệu học tập'))
-                              : _buildChart(colorScheme),
+                          : _errorMessage != null
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Icon(Icons.error_outline, color: Colors.orange, size: 48),
+                                      const SizedBox(height: 8),
+                                      const Text(
+                                        'Cần cấu hình Index trên Firebase Console',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Vui lòng kiểm tra terminal để lấy link tạo Index',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : _stats.isEmpty
+                                  ? const Center(child: Text('Chưa có dữ liệu học tập'))
+                                  : _buildChart(colorScheme),
                     ),
                   ],
                 ),

@@ -91,6 +91,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
               child: Column(
                 children: [
+                  const SizedBox(height: 10),
+                  // Logo Image
+                  Hero(
+                    tag: 'logo',
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Image.asset(
+                        'assets/images/logo.png',
+                        height: 60,
+                        width: 60,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 20),
                   // Register Form Card
                   Container(
@@ -130,7 +148,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             labelText: 'Tên tài khoản (Hiển thị)',
                             prefixIcon: const Icon(Icons.person_outline),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(24),
                             ),
                           ),
                         ),
@@ -144,7 +162,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             labelText: 'Email',
                             prefixIcon: const Icon(Icons.email_outlined),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(24),
                             ),
                           ),
                         ),
@@ -164,7 +182,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                             ),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(24),
                             ),
                           ),
                         ),
@@ -178,7 +196,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             labelText: 'Xác nhận mật khẩu',
                             prefixIcon: const Icon(Icons.lock_person_outlined),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(24),
                             ),
                           ),
                         ),
@@ -194,7 +212,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 style: ElevatedButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(vertical: 16),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
+                                    borderRadius: BorderRadius.circular(24),
                                   ),
                                 ),
                                 child: auth.isLoading

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class Word {
   final String? id;
   final String deckId;
+  final String? uid; // Mã người dùng để truy vấn thống kê toàn cục
   final String front;
   final String back;
   final String? example;
@@ -12,6 +13,7 @@ class Word {
   Word({
     this.id,
     required this.deckId,
+    this.uid,
     required this.front,
     required this.back,
     this.example,
@@ -24,6 +26,7 @@ class Word {
     return Word(
       id: id ?? map['id']?.toString(),
       deckId: map['deck_id']?.toString() ?? '',
+      uid: map['uid']?.toString(),
       front: map['front'] ?? '',
       back: map['back'] ?? '',
       example: map['example'],
@@ -41,6 +44,7 @@ class Word {
     return {
       'id': id,
       'deck_id': deckId,
+      'uid': uid,
       'front': front,
       'back': back,
       'example': example,
@@ -53,6 +57,7 @@ class Word {
   Map<String, dynamic> toFirestore() {
     return {
       'deck_id': deckId,
+      'uid': uid,
       'front': front,
       'back': back,
       'example': example,
@@ -65,6 +70,7 @@ class Word {
   Word copyWith({
     String? id,
     String? deckId,
+    String? uid,
     String? front,
     String? back,
     String? example,
@@ -74,6 +80,7 @@ class Word {
     return Word(
       id: id ?? this.id,
       deckId: deckId ?? this.deckId,
+      uid: uid ?? this.uid,
       front: front ?? this.front,
       back: back ?? this.back,
       example: example ?? this.example,
