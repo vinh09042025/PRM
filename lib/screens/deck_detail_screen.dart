@@ -87,6 +87,125 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
     );
   }
 
+  void _showEditDeckDialog() {
+    final controller = TextEditingController(text: widget.deck.name);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sửa tên bộ thẻ'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Tên bộ thẻ'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.isNotEmpty) {
+                context.read<DeckProvider>().updateDeck(widget.deck.id!, controller.text);
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Lưu'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteDeckDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xóa bộ thẻ?'),
+        content: const Text('Tất cả từ vựng trong bộ thẻ này sẽ bị xóa vĩnh viễn.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+          ElevatedButton(
+            onPressed: () {
+              context.read<DeckProvider>().deleteDeck(widget.deck.id!);
+              Navigator.pop(context);
+              Navigator.pop(context); // Go back home
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditWordDialog(dynamic word) {
+    final frontController = TextEditingController(text: word.front);
+    final backController = TextEditingController(text: word.back);
+    final exampleController = TextEditingController(text: word.example ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sửa từ vựng'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: frontController,
+                decoration: const InputDecoration(labelText: 'Từ vựng'),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: backController,
+                decoration: const InputDecoration(labelText: 'Nghĩa'),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: exampleController,
+                decoration: const InputDecoration(labelText: 'Ví dụ'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+          ElevatedButton(
+            onPressed: () {
+                context.read<DeckProvider>().updateWord(
+                      widget.deck.id!,
+                      word.id!,
+                      frontController.text,
+                      backController.text,
+                      exampleController.text.isEmpty ? null : exampleController.text,
+                    );
+              Navigator.pop(context);
+            },
+            child: const Text('Lưu'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteWordDialog(dynamic word) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xóa từ?'),
+        content: Text('Bạn có chắc muốn xóa từ "${word.front}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+          ElevatedButton(
+            onPressed: () {
+              context.read<DeckProvider>().deleteWord(widget.deck.id!, word.id!);
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -130,9 +249,36 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
                   ),
                 ),
                 actions: [
-                  IconButton(
-                    icon: const Icon(Icons.more_vert),
-                    onPressed: () {},
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        _showEditDeckDialog();
+                      } else if (value == 'delete') {
+                        _showDeleteDeckDialog();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit_outlined, size: 20),
+                            SizedBox(width: 8),
+                            Text('Sửa tên'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                            SizedBox(width: 8),
+                            Text('Xóa bộ thẻ', style: TextStyle(color: Colors.red)),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -141,38 +287,53 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Row(
+                  child: Column(
                     children: [
-                      _LearningModeCard(
-                        title: 'Flashcards',
-                        subtitle: 'Lật & Học',
-                        icon: Icons.rectangle_outlined,
-                        color: Colors.blueAccent,
-                        onTap: () {
-                          if (words.isEmpty) return _showEmptyWarning();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => FlashcardScreen(deckId: widget.deck.id!, words: words),
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 12),
-                      _LearningModeCard(
-                        title: 'Quiz',
-                        subtitle: 'Kiểm tra',
-                        icon: Icons.checklist_rtl_rounded,
-                        color: Colors.orangeAccent,
-                        onTap: () {
-                          if (words.length < 4) return _showQuizWarning();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => QuizScreen(deckId: widget.deck.id!, words: words),
-                            ),
-                          );
-                        },
+                      // Progress Summary
+                      if (words.isNotEmpty) ...[
+                        _buildProgressBanner(colorScheme, words),
+                        const SizedBox(height: 20),
+                      ],
+                      Row(
+                        children: [
+                          _LearningModeCard(
+                            title: 'Flashcards',
+                            subtitle: 'Lật & Học',
+                            icon: Icons.rectangle_outlined,
+                            color: Colors.blueAccent,
+                            onTap: () {
+                              if (words.isEmpty) return _showEmptyWarning();
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => FlashcardScreen(
+                                    deckId: widget.deck.id!,
+                                    words: words,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(width: 12),
+                          _LearningModeCard(
+                            title: 'Kiểm tra',
+                            subtitle: 'Thử thách',
+                            icon: Icons.assignment_outlined,
+                            color: Colors.orangeAccent,
+                            onTap: () {
+                              if (words.isEmpty) return _showEmptyWarning();
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => QuizScreen(
+                                    deckId: widget.deck.id!,
+                                    words: words,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -255,6 +416,25 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
                                   ),
                                   onPressed: () => provider.toggleWordLearned(word),
                                 ),
+                                PopupMenuButton<String>(
+                                  onSelected: (value) {
+                                    if (value == 'edit') {
+                                      _showEditWordDialog(word);
+                                    } else if (value == 'delete') {
+                                      _showDeleteWordDialog(word);
+                                    }
+                                  },
+                                  itemBuilder: (context) => [
+                                    const PopupMenuItem(
+                                      value: 'edit',
+                                      child: Text('Sửa'),
+                                    ),
+                                    const PopupMenuItem(
+                                      value: 'delete',
+                                      child: Text('Xóa'),
+                                    ),
+                                  ],
+                                ),
                               ],
                             ),
                           ),
@@ -285,6 +465,61 @@ class _DeckDetailScreenState extends State<DeckDetailScreen> {
   void _showQuizWarning() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Cần ít nhất 4 từ để bắt đầu Quiz!'), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  Widget _buildProgressBanner(ColorScheme colorScheme, List<dynamic> words) {
+    final learnedCount = words.where((w) => w.isLearned).length;
+    final progress = words.isEmpty ? 0.0 : learnedCount / words.length;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Tiến độ học tập',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Đã học $learnedCount/${words.length} từ vựng',
+                    style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 14),
+                  ),
+                ],
+              ),
+              Text(
+                '${(progress * 100).toInt()}%',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 10,
+              backgroundColor: colorScheme.primary.withValues(alpha: 0.1),
+              valueColor: AlwaysStoppedAnimation<Color>(colorScheme.primary),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

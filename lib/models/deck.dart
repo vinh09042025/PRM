@@ -1,5 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Deck {
-  final int? id;
+  final String? id;
   final String name;
   final DateTime createdAt;
   final DateTime? lastStudied;
@@ -11,19 +13,25 @@ class Deck {
     this.lastStudied,
   });
 
-  // Chuyển đổi từ Map (SQLite) sang Object
-  factory Deck.fromMap(Map<String, dynamic> map) {
+  // Chuyển đổi từ Map (SQLite/Firestore) sang Object
+  factory Deck.fromMap(Map<String, dynamic> map, {String? id}) {
     return Deck(
-      id: map['id'],
-      name: map['name'],
-      createdAt: DateTime.parse(map['created_at']),
+      id: id ?? map['id']?.toString(),
+      name: map['name'] ?? '',
+      createdAt: map['created_at'] != null 
+          ? (map['created_at'] is Timestamp 
+              ? (map['created_at'] as Timestamp).toDate() 
+              : DateTime.parse(map['created_at']))
+          : DateTime.now(),
       lastStudied: map['last_studied'] != null 
-          ? DateTime.parse(map['last_studied']) 
+          ? (map['last_studied'] is Timestamp 
+              ? (map['last_studied'] as Timestamp).toDate() 
+              : DateTime.parse(map['last_studied']))
           : null,
     );
   }
 
-  // Chuyển đổi từ Object sang Map để lưu vào SQLite
+  // Chuyển đổi từ Object sang Map để lưu vào SQLite/Firestore
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -33,9 +41,18 @@ class Deck {
     };
   }
 
+  // Chuyển đổi dành riêng cho Firestore (dùng Timestamp)
+  Map<String, dynamic> toFirestore() {
+    return {
+      'name': name,
+      'created_at': Timestamp.fromDate(createdAt),
+      'last_studied': lastStudied != null ? Timestamp.fromDate(lastStudied!) : null,
+    };
+  }
+
   // Tạo bản sao với các thuộc tính thay đổi
   Deck copyWith({
-    int? id,
+    String? id,
     String? name,
     DateTime? createdAt,
     DateTime? lastStudied,

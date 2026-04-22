@@ -1,13 +1,11 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../models/word.dart';
 import '../providers/deck_provider.dart';
 
 class QuizScreen extends StatefulWidget {
-  final int deckId;
+  final String deckId;
   final List<Word> words;
   const QuizScreen({super.key, required this.deckId, required this.words});
 
@@ -243,7 +241,7 @@ class _QuizScreenState extends State<QuizScreen> {
 }
 
 class _QuizResultView extends StatefulWidget {
-  final int deckId;
+  final String deckId;
   final int correct;
   final int total;
   final VoidCallback onRetry;
@@ -260,12 +258,9 @@ class _QuizResultView extends StatefulWidget {
 }
 
 class _QuizResultViewState extends State<_QuizResultView> {
-  late Future<List<Map<String, dynamic>>> _sessionsFuture;
-
   @override
   void initState() {
     super.initState();
-    _sessionsFuture = context.read<DeckProvider>().getAllStudySessions(widget.deckId);
   }
 
   @override

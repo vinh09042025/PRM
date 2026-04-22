@@ -1,96 +1,74 @@
 import 'dart:convert';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 
 class AIService {
-  static const String _apiKey = 'AIzaSyC8oHoJzh99maiqELeskc2cVuGRyQTDQPM';
+  static const String _apiKey = 'AIzaSyD6qKXB3TcFdMhCYizIkHmqUYwb1HaGLUk';
   
   GenerativeModel? _model;
 
   AIService();
 
-  /// Initializes the model by fetching available models via REST API.
-  Future<void> _initModel() async {
-    if (_model != null) return;
-
-    try {
-      debugPrint('Fetching available models for API Key...');
-      final url = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models?key=$_apiKey');
-      final response = await http.get(url);
-
-      String foundModelName = 'gemini-1.5-flash'; // Default fallback
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final List<dynamic> models = data['models'] ?? [];
-        
-        // Strategy: Look for 1.5-flash, then pro
-        bool found = false;
-        for (var m in models) {
-          final String name = m['name'] ?? '';
-          debugPrint('Discovered: $name');
-          if (name.contains('gemini-1.5-flash')) {
-            foundModelName = name.replaceFirst('models/', '');
-            found = true;
-            break;
-          }
-        }
-
-        if (!found && models.isNotEmpty) {
-          foundModelName = (models.first['name'] as String).replaceFirst('models/', '');
-        }
-      } else {
-        debugPrint('Failed to list models: ${response.statusCode}. Using default.');
-      }
-      
-      debugPrint('Decision: Using model identifier: $foundModelName');
-      _model = GenerativeModel(model: foundModelName, apiKey: _apiKey);
-    } catch (e) {
-      debugPrint('Initialization error: $e. Falling back to static identifier.');
-      _model = GenerativeModel(model: 'gemini-1.5-flash', apiKey: _apiKey);
-    }
-  }
-
-  /// Generates flashcards based on user preferences.
+  /// Generates flashcards based on user preferences with model fallback logic.
   Future<List<Map<String, dynamic>>> generateFlashcards({
     required String language,
     required String difficulty,
     required String category,
     required int count,
   }) async {
-    await _initModel();
+    final List<String> modelsToTry = [
+      'gemini-flash-latest',
+      'gemini-2.0-flash',
+      'gemini-pro-latest',
+      'gemini-1.5-flash-latest',
+    ];
 
-    final prompt = '''
-    Generate a list of $count flashcards for learning $language.
-    Difficulty level: $difficulty.
-    Topic/Category: $category.
-    
-    The response must be a valid JSON array of objects. 
-    Each object must have exactly these keys:
-    - "front": The word or phrase in $language.
-    - "back": The meaning in Vietnamese.
-    - "example": A short example sentence in $language using the word.
-    
-    Ensure the translations are accurate and common.
-    Return ONLY pure JSON, no markdown formatting, no backticks.
-    ''';
+    Object? lastError;
 
-    try {
-      final content = [Content.text(prompt)];
-      final response = await _model!.generateContent(content);
-      
-      String? jsonString = response.text;
-      if (jsonString == null) throw Exception('AI returned empty response');
+    for (String modelName in modelsToTry) {
+      try {
+        debugPrint('Attempting flashcard generation with model: $modelName');
+        final model = GenerativeModel(model: modelName, apiKey: _apiKey);
+        
+        final prompt = '''
+        Generate a list of $count flashcards for learning $language.
+        Difficulty level: $difficulty.
+        Topic/Category: $category.
+        
+        The response must be a valid JSON array of objects. 
+        Each object must have exactly these keys:
+        - "front": The word or phrase in $language.
+        - "back": The meaning in Vietnamese.
+        - "example": A short example sentence in $language using the word.
+        
+        Ensure the translations are accurate and common.
+        Return ONLY pure JSON, no markdown formatting, no backticks.
+        ''';
 
-      // Remove potential markdown backticks if AI ignores instruction
-      jsonString = jsonString.replaceAll('```json', '').replaceAll('```', '').trim();
+        final content = [Content.text(prompt)];
+        final response = await model.generateContent(content);
+        
+        String? jsonString = response.text;
+        if (jsonString == null) continue; // Try next model if response is empty
 
-      final List<dynamic> decoded = jsonDecode(jsonString);
-      return decoded.cast<Map<String, dynamic>>();
-    } catch (e) {
-      debugPrint('Error generating flashcards: $e');
-      rethrow;
+        // Remove potential markdown backticks
+        jsonString = jsonString.replaceAll('```json', '').replaceAll('```', '').trim();
+
+        final List<dynamic> decoded = jsonDecode(jsonString);
+        debugPrint('Generation successful with model: $modelName');
+        
+        // Cache this model for future use if it worked
+        _model = model;
+        
+        return decoded.cast<Map<String, dynamic>>();
+      } catch (e) {
+        lastError = e;
+        debugPrint('Model $modelName failed: $e');
+        // Continue to next model
+      }
     }
+
+    debugPrint('All models failed. Last error: $lastError');
+    throw Exception('Failed to generate flashcards after trying multiple models. Please check your API Key permissions. Last error: $lastError');
   }
 }

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
@@ -27,7 +26,7 @@ class DatabaseHelper {
 
       _database = await openDatabase(
         path,
-        version: 2,
+        version: 4,
         onCreate: _createDB,
         onUpgrade: _onUpgrade,
       );
@@ -50,6 +49,16 @@ class DatabaseHelper {
         )
       ''');
 
+      // Tạo bảng users (Người dùng)
+      await txn.execute('''
+        CREATE TABLE users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          username TEXT NOT NULL UNIQUE,
+          password TEXT NOT NULL,
+          full_name TEXT
+        )
+      ''');
+
       // Tạo bảng words (Từ vựng)
       await txn.execute('''
         CREATE TABLE words (
@@ -59,6 +68,7 @@ class DatabaseHelper {
           back TEXT NOT NULL,
           example TEXT,
           is_learned INTEGER DEFAULT 0,
+          learned_at TEXT,
           FOREIGN KEY (deck_id) REFERENCES decks (id) ON DELETE CASCADE
         )
       ''');
@@ -90,6 +100,23 @@ class DatabaseHelper {
       await db.execute('CREATE INDEX idx_words_deck_id ON words (deck_id)');
       await db.execute('CREATE INDEX idx_study_sessions_date ON study_sessions (date)');
       debugPrint('Database đã được nâng cấp lên phiên bản 2 (Thêm Index)');
+    }
+    if (oldVersion < 3) {
+      // Nâng cấp lên v3: thêm cột learned_at
+      await db.execute('ALTER TABLE words ADD COLUMN learned_at TEXT');
+      debugPrint('Database đã được nâng cấp lên phiên bản 3 (Thêm learned_at)');
+    }
+    if (oldVersion < 4) {
+      // Nâng cấp lên v4: thêm bảng users
+      await db.execute('''
+        CREATE TABLE users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          username TEXT NOT NULL UNIQUE,
+          password TEXT NOT NULL,
+          full_name TEXT
+        )
+      ''');
+      debugPrint('Database đã được nâng cấp lên phiên bản 4 (Thêm bảng users)');
     }
   }
 
@@ -147,7 +174,43 @@ class DatabaseHelper {
     debugPrint('Dữ liệu mẫu đã được thêm thành công!');
   }
 
-  // --- Các hàm hỗ trợ query dữ liệu (Thêm vào để dùng sau) ---
+  // --- Thống kê ---
+
+  Future<Map<String, int>> getLearnedWordsStats(String period) async {
+    final db = await instance.database;
+    String groupBy;
+
+    switch (period) {
+      case 'day':
+        groupBy = 'date(learned_at)';
+        break;
+      case 'week':
+        groupBy = "strftime('%Y-W%W', learned_at)";
+        break;
+      case 'month':
+        groupBy = "strftime('%Y-%m', learned_at)";
+        break;
+      case 'year':
+        groupBy = "strftime('%Y', learned_at)";
+        break;
+      default:
+        groupBy = 'date(learned_at)';
+    }
+
+    final List<Map<String, dynamic>> results = await db.rawQuery('''
+      SELECT $groupBy as period, COUNT(*) as count 
+      FROM words 
+      WHERE is_learned = 1 AND learned_at IS NOT NULL
+      GROUP BY period
+      ORDER BY period ASC
+    ''');
+
+    Map<String, int> stats = {};
+    for (var row in results) {
+      stats[row['period'].toString()] = row['count'] as int;
+    }
+    return stats;
+  }
 
   Future<List<Map<String, dynamic>>> getDecks() async {
     final db = await instance.database;
@@ -157,6 +220,86 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getWordsByDeck(int deckId) async {
     final db = await instance.database;
     return await db.query('words', where: 'deck_id = ?', whereArgs: [deckId]);
+  }
+
+  // --- Deck Operations ---
+
+  Future<int> updateDeck(int id, String name) async {
+    final db = await instance.database;
+    return await db.update('decks', {'name': name}, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> deleteDeck(int id) async {
+    final db = await instance.database;
+    return await db.delete('decks', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // --- Word Operations ---
+
+  Future<int> insertWord(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.insert('words', row);
+  }
+
+  Future<int> updateWord(int id, Map<String, dynamic> row) async {
+    final db = await instance.database;
+    return await db.update('words', row, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> deleteWord(int id) async {
+    final db = await instance.database;
+    return await db.delete('words', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> toggleWordLearned(int id, bool isLearned) async {
+    final db = await instance.database;
+    return await db.update(
+      'words',
+      {
+        'is_learned': isLearned ? 1 : 0,
+        'learned_at': isLearned ? DateTime.now().toIso8601String() : null,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // --- User Operations ---
+
+  Future<int> createUser(Map<String, dynamic> row) async {
+    final db = await instance.database;
+    try {
+      return await db.insert('users', row);
+    } catch (e) {
+      debugPrint('Lỗi tạo user: $e');
+      return -1;
+    }
+  }
+
+  Future<Map<String, dynamic>?> getUserByUsername(String username) async {
+    final db = await instance.database;
+    final maps = await db.query(
+      'users',
+      where: 'username = ?',
+      whereArgs: [username],
+    );
+    if (maps.isNotEmpty) {
+      return maps.first;
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> login(String username, String password) async {
+    final db = await instance.database;
+    final maps = await db.query(
+      'users',
+      where: 'username = ? AND password = ?',
+      whereArgs: [username, password],
+    );
+    if (maps.isNotEmpty) {
+      return maps.first;
+    }
+    return null;
   }
 
   Future<void> close() async {

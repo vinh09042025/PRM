@@ -4,25 +4,51 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_core/firebase_core.dart';
+ import 'firebase_options.dart';
+ // Bạn cần chạy 'flutterfire configure' để có file này
 import 'providers/theme_provider.dart';
 import 'providers/deck_provider.dart';
+import 'providers/auth_provider.dart';
+import 'services/notification_service.dart';
 import 'screens/home_screen.dart';
+import 'screens/login_screen.dart';
 
-void main() {
+void main() async {
   // Đảm bảo các widget được khởi tạo trước khi chạy ứng dụng
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Khởi tạo Notification Service
+  final notificationService = NotificationService();
+  await notificationService.init();
+  await notificationService.requestPermissions();
+  await notificationService.scheduleDailyStudyReminder();
 
   // Khởi tạo Database cho Windows/Linux
   if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   }
+
+  // Khởi tạo Firebase
+  // LƯU Ý: Nếu chưa có firebase_options.dart, hãy chạy: flutterfire configure
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform, 
+    );
+  } catch (e) {
+    debugPrint('Firebase initialization error: $e');
+  }
   
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => DeckProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, DeckProvider>(
+          create: (_) => DeckProvider(),
+          update: (_, auth, deck) => deck!..updateService(auth.uid),
+        ),
       ],
       child: const WordSprintApp(),
     ),
@@ -127,7 +153,16 @@ class WordSprintApp extends StatelessWidget {
             ),
           ),
           
-          home: const HomeScreen(),
+          home: Consumer<AuthProvider>(
+            builder: (context, authProvider, child) {
+              if (authProvider.isLoading) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              return authProvider.isAuthenticated ? const HomeScreen() : const LoginScreen();
+            },
+          ),
         );
       },
     );

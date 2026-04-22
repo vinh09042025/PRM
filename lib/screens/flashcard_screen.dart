@@ -8,7 +8,7 @@ import '../providers/deck_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class FlashcardScreen extends StatefulWidget {
-  final int deckId;
+  final String deckId;
   final List<Word> words;
   const FlashcardScreen({super.key, required this.deckId, required this.words});
 
@@ -197,7 +197,7 @@ class _FlashcardScreenState extends State<FlashcardScreen> with TickerProviderSt
 
   Widget _buildOverlay(IconData icon, Color color) {
     return Container(
-      color: color.withValues(alpha: 0.1),
+      color: color.withOpacity(0.1),
       child: Center(
         child: Icon(icon, color: color, size: 120),
       ),
@@ -226,7 +226,7 @@ class _AnswerButton extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
           foregroundColor: color,
-          side: BorderSide(color: color.withValues(alpha: 0.3)),
+          side: BorderSide(color: color.withOpacity(0.3)),
           elevation: 0,
           padding: const EdgeInsets.symmetric(vertical: 20),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -267,10 +267,10 @@ class _CardFace extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(32),
-        border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.5)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -292,44 +292,46 @@ class _CardFace extends StatelessWidget {
             ),
           Padding(
             padding: const EdgeInsets.all(32.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  isFront ? 'THUẬT NGỮ' : 'ĐỊNH NGHĨA',
-                  style: TextStyle(
-                    letterSpacing: 2,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade400,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  text,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.lexend(
-                    fontSize: 34,
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-                if (subText != null) ...[
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Divider(indent: 40, endIndent: 40),
-                  ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
                   Text(
-                    subText!,
-                    textAlign: TextAlign.center,
+                    isFront ? 'THUẬT NGỮ' : 'ĐỊNH NGHĨA',
                     style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey.shade600,
-                      height: 1.5,
+                      letterSpacing: 2,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade400,
                     ),
                   ),
+                  const SizedBox(height: 24),
+                  Text(
+                    text,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.lexend(
+                      fontSize: 34,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  if (subText != null && subText!.isNotEmpty) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 32),
+                      child: Divider(indent: 40, endIndent: 40),
+                    ),
+                    Text(
+                      subText!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey.shade600,
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ],
@@ -404,7 +406,7 @@ class _FlipCardWidgetState extends State<FlipCardWidget> with SingleTickerProvid
 }
 
 class _ResultView extends StatefulWidget {
-  final int deckId;
+  final String deckId;
   final int correct;
   final int total;
   final VoidCallback onRetry;
@@ -530,7 +532,7 @@ class _ResultViewState extends State<_ResultView> {
                             dotData: const FlDotData(show: true),
                             belowBarData: BarAreaData(
                               show: true,
-                              color: colorScheme.primary.withValues(alpha: 0.1),
+                              color: colorScheme.primary.withOpacity(0.1),
                             ),
                           ),
                         ],

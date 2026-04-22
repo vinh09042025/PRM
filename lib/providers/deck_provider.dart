@@ -1,221 +1,141 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import '../data/database_helper.dart';
 import '../models/deck.dart';
 import '../models/word.dart';
+import '../services/firestore_service.dart';
+import '../data/database_helper.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DeckProvider with ChangeNotifier {
+  FirestoreService? _firestoreService;
   List<Deck> _decks = [];
   List<Word> _currentWords = [];
   int _currentStreak = 0;
-  bool _isInitialLoading = true;
+  bool _isLoading = false;
+  
+  StreamSubscription? _decksSubscription;
+  StreamSubscription? _wordsSubscription;
 
   List<Deck> get decks => _decks;
   List<Word> get currentWords => _currentWords;
   int get currentStreak => _currentStreak;
-  bool get isInitialLoading => _isInitialLoading;
+  bool get isLoading => _isLoading;
 
-  // Tải danh sách bộ thẻ từ database
-  Future<void> fetchDecks() async {
-    final data = await DatabaseHelper.instance.getDecks();
-    _decks = data.map((item) => Deck.fromMap(item)).toList();
-    _isInitialLoading = false;
+  // Called when UID changes (using ProxyProvider or manually)
+  void updateService(String? uid) {
+    if (uid == null) {
+      _firestoreService = null;
+      _decks = [];
+      _currentWords = [];
+      _decksSubscription?.cancel();
+      _wordsSubscription?.cancel();
+    } else {
+      _firestoreService = FirestoreService(uid: uid);
+      _listenToDecks();
+    }
     notifyListeners();
   }
 
-  // Tải danh sách từ vựng theo ID bộ thẻ
-  Future<void> fetchWords(int deckId) async {
-    final data = await DatabaseHelper.instance.getWordsByDeck(deckId);
-    _currentWords = data.map((item) => Word.fromMap(item)).toList();
-    notifyListeners();
+  void _listenToDecks() {
+    _decksSubscription?.cancel();
+    _isLoading = true;
+    _decksSubscription = _firestoreService?.streamDecks().listen((decks) {
+      _decks = decks;
+      _isLoading = false;
+      notifyListeners();
+    });
   }
 
-  // Thêm bộ thẻ mới
+  void fetchWords(String deckId) {
+    _wordsSubscription?.cancel();
+    _wordsSubscription = _firestoreService?.streamWords(deckId).listen((words) {
+      _currentWords = words;
+      notifyListeners();
+    });
+  }
+
+  // --- Deck Actions ---
+
   Future<void> addDeck(String name) async {
-    try {
-      final newDeck = Deck(name: name, createdAt: DateTime.now());
-
-      // Tối ưu: Thêm vào list cục bộ ngay lập tức để UI cập nhật
-      _decks.insert(0, newDeck);
-      notifyListeners();
-
-      final db = await DatabaseHelper.instance.database;
-      final id = await db.insert('decks', newDeck.toMap());
-
-      // Cập nhật lại ID thực sau khi insert thành công
-      final index = _decks.indexOf(newDeck);
-      if (index != -1) {
-        _decks[index] = newDeck.copyWith(id: id);
-      }
-      debugPrint('Đã thêm bộ thẻ: $name (ID: $id)');
-    } catch (e) {
-      debugPrint('Lỗi khi thêm bộ thẻ: $e');
-      await fetchDecks(); // Nếu lỗi thì fetch lại bản chuẩn từ DB
-    }
+    if (_firestoreService == null) return;
+    await _firestoreService!.addDeck(name);
   }
 
-  // Thêm từ vựng mới vào bộ thẻ
-  Future<void> addWord(
-    int deckId,
-    String front,
-    String back,
-    String? example,
-  ) async {
-    try {
-      final newWord = Word(
-        deckId: deckId,
-        front: front,
-        back: back,
-        example: example,
-      );
-
-      // Tối ưu: Thêm vào list từ hiện tại
-      _currentWords.add(newWord);
-      notifyListeners();
-
-      final db = await DatabaseHelper.instance.database;
-      final id = await db.insert('words', newWord.toMap());
-
-      // Cập nhật ID thực
-      final index = _currentWords.indexOf(newWord);
-      if (index != -1) {
-        _currentWords[index] = newWord.copyWith(id: id);
-      }
-    } catch (e) {
-      debugPrint('Lỗi khi thêm từ: $e');
-      await fetchWords(deckId);
-    }
+  Future<void> updateDeck(String id, String name) async {
+    if (_firestoreService == null) return;
+    await _firestoreService!.updateDeck(id, name);
   }
 
-  // Cập nhật trạng thái "Đã thuộc" của từ vựng
+  Future<void> deleteDeck(String id) async {
+    if (_firestoreService == null) return;
+    await _firestoreService!.deleteDeck(id);
+  }
+
+  // --- Word Actions ---
+
+  Future<void> addWord(String deckId, String front, String back, String? example) async {
+    if (_firestoreService == null) return;
+    final word = Word(
+      deckId: deckId,
+      front: front,
+      back: back,
+      example: example,
+    );
+    await _firestoreService!.addWord(deckId, word);
+  }
+
+  Future<void> updateWord(String deckId, String wordId, String front, String back, String? example) async {
+    if (_firestoreService == null) return;
+    await _firestoreService!.updateWord(deckId, wordId, {
+      'front': front,
+      'back': back,
+      'example': example,
+    });
+  }
+
+  Future<void> deleteWord(String deckId, String wordId) async {
+    if (_firestoreService == null) return;
+    await _firestoreService!.deleteWord(deckId, wordId);
+  }
+
   Future<void> toggleWordLearned(Word word) async {
-    final updatedWord = word.copyWith(isLearned: !word.isLearned);
-
-    // Cập nhật UI trước (Optimistic)
-    final index = _currentWords.indexWhere((w) => w.id == word.id);
-    if (index != -1) {
-      _currentWords[index] = updatedWord;
-      notifyListeners();
-    }
-
-    try {
-      final db = await DatabaseHelper.instance.database;
-      await db.update(
-        'words',
-        updatedWord.toMap(),
-        where: 'id = ?',
-        whereArgs: [word.id],
-      );
-    } catch (e) {
-      debugPrint('Lỗi khi update từ: $e');
-      await fetchWords(word.deckId); // Revert nếu lỗi
-    }
+    if (_firestoreService == null) return;
+    await _firestoreService!.updateWord(word.deckId, word.id!, {
+      'is_learned': !word.isLearned,
+      'learned_at': !word.isLearned ? Timestamp.now() : null,
+    });
   }
 
-  // Ghi lại phiên học tập và cập nhật last_studied của deck
-  Future<void> recordStudySession(int deckId, int correct, int total) async {
-    try {
-      final db = await DatabaseHelper.instance.database;
-      final now = DateTime.now().toIso8601String();
+  // --- Stats ---
 
-      // Thực hiện các thao tác Database trong một batch hoặc song song
-      await Future.wait([
-        db.insert('study_sessions', {
-          'deck_id': deckId,
-          'date': now,
-          'correct_count': correct,
-          'total_count': total,
-        }),
-        db.update(
-          'decks',
-          {'last_studied': now},
-          where: 'id = ?',
-          whereArgs: [deckId],
-        ),
-      ]);
-
-      // Thay vì gọi fetchDecks() tốn kém, ta chỉ cập nhật deck bị thay đổi
-      final deckIndex = _decks.indexWhere((d) => d.id == deckId);
-      if (deckIndex != -1) {
-        _decks[deckIndex] = _decks[deckIndex].copyWith(
-          lastStudied: DateTime.parse(now),
-        );
-        // Đưa deck vừa học lên đầu danh sách (tùy chọn UI)
-        final movedDeck = _decks.removeAt(deckIndex);
-        _decks.insert(0, movedDeck);
-        notifyListeners();
-      }
-
-      await calculateStreak();
-    } catch (e) {
-      debugPrint('Lỗi record session: $e');
-      await fetchDecks();
-    }
+  Future<void> recordStudySession(String deckId, int correct, int total) async {
+    if (_firestoreService == null) return;
+    await _firestoreService!.recordSession(deckId, correct, total);
   }
 
-  // Lấy tất cả phiên học của một bộ thẻ
-  Future<List<Map<String, dynamic>>> getAllStudySessions(int deckId) async {
-    try {
-      final db = await DatabaseHelper.instance.database;
-
-      final sessions = await db.query(
-        'study_sessions',
-        where: 'deck_id = ?',
-        whereArgs: [deckId],
-        orderBy: 'date ASC',
-      );
-
-      return sessions;
-    } catch (e) {
-      debugPrint('Lỗi lấy study sessions: $e');
-      return [];
-    }
-  }
-
-  // Tính toán chuỗi ngày học (Streak)
-  Future<void> calculateStreak() async {
-    final db = await DatabaseHelper.instance.database;
-    // Lấy tất cả các ngày duy nhất có session học, sắp xếp giảm dần
-    final List<Map<String, dynamic>> results = await db.rawQuery('''
-      SELECT DISTINCT date(date) as study_date 
-      FROM study_sessions 
-      ORDER BY study_date DESC
-    ''');
-
-    if (results.isEmpty) {
-      _currentStreak = 0;
-      notifyListeners();
-      return;
-    }
-
-    int streak = 0;
-    DateTime today = DateTime.now();
-    DateTime checkDate = DateTime(today.year, today.month, today.day);
-
-    for (var row in results) {
-      DateTime studyDate = DateTime.parse(row['study_date']);
-      // Nếu là hôm nay hoặc hôm qua so với checkDate (để nối chuỗi)
-      if (studyDate == checkDate) {
-        streak++;
-        checkDate = checkDate.subtract(const Duration(days: 1));
-      } else if (studyDate.isBefore(checkDate)) {
-        // Nếu cách ngày thì dừng streak
-        break;
-      }
-    }
-
-    _currentStreak = streak;
-    notifyListeners();
+  // Lấy tất cả phiên học của một bộ thẻ (Firestore version)
+  Future<List<Map<String, dynamic>>> getAllStudySessions(String deckId) async {
+    if (_firestoreService == null) return [];
+    
+    final snapshot = await _firestoreService!.db
+        .collection('users')
+        .doc(_firestoreService!.uid)
+        .collection('study_sessions')
+        .where('deck_id', isEqualTo: deckId)
+        .orderBy('date', descending: false)
+        .get();
+        
+    return snapshot.docs.map((doc) => doc.data()).toList();
   }
 
   // --- AI Generation Support ---
 
   Future<void> addAIGeneratedDeck(String deckName, List<Map<String, dynamic>> aiWords) async {
+    if (_firestoreService == null) return;
+    
     try {
-      final db = await DatabaseHelper.instance.database;
-      
       // 1. Create the deck
-      final newDeck = Deck(name: deckName, createdAt: DateTime.now());
-      final deckId = await db.insert('decks', newDeck.toMap());
+      final deckId = await _firestoreService!.addDeck(deckName);
       
       // 2. Insert all words
       for (var aiWord in aiWords) {
@@ -225,15 +145,58 @@ class DeckProvider with ChangeNotifier {
           back: aiWord['back'] ?? 'Nghĩa chưa xác định',
           example: aiWord['example'],
         );
-        await db.insert('words', newWord.toMap());
+        await _firestoreService!.addWord(deckId, newWord);
       }
-      
-      // 3. Refresh local data
-      await fetchDecks();
-      debugPrint('Đã tạo bộ thẻ từ AI: $deckName với ${aiWords.length} từ.');
     } catch (e) {
       debugPrint('Lỗi khi lưu bộ thẻ AI: $e');
       rethrow;
     }
+  }
+
+  // --- Migration Support ---
+
+  Future<int> migrateLocalDataToCloud() async {
+    if (_firestoreService == null) return 0;
+    
+    int deckCount = 0;
+    try {
+      // 1. Get all local decks
+      final localDecks = await DatabaseHelper.instance.getDecks();
+      if (localDecks.isEmpty) return 0;
+
+      for (var localDeckMap in localDecks) {
+        final localDeckId = localDeckMap['id'] as int;
+        final deckName = localDeckMap['name'] as String;
+
+        // 2. Create this deck in Firestore
+        final cloudDeckId = await _firestoreService!.addDeck(deckName);
+        deckCount++;
+
+        // 3. Get all words for this local deck
+        final localWords = await DatabaseHelper.instance.getWordsByDeck(localDeckId);
+        
+        // 4. Upload each word to Firestore
+        for (var localWordMap in localWords) {
+          final word = Word.fromMap(localWordMap);
+          // Ensure deckId is the new cloud ID
+          final cloudWord = word.copyWith(deckId: cloudDeckId);
+          await _firestoreService!.addWord(cloudDeckId, cloudWord);
+        }
+      }
+      return deckCount;
+    } catch (e) {
+      debugPrint('Lỗi khi di cư dữ liệu: $e');
+      rethrow;
+    }
+  }
+
+  // Note: Streak will need more logic in Cloud Firestore 
+  // For now, we focus on the core sync.
+  
+  @override
+  void dispose() {
+    _decksSubscription?.cancel();
+    _wordsSubscription?.cancel();
+    super.dispose();
   }
 }
